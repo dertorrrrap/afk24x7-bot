@@ -1,4 +1,4 @@
-uconst express = require('express');
+const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const mineflayer = require('mineflayer');
@@ -410,7 +410,7 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-const PORT = 3000;
+const PORT = 4000;
 httpServer.listen(PORT, () => {
   console.log(`\n🚀 Mineflayer Control Panel running at: http://localhost:${PORT}\n`);
 });
