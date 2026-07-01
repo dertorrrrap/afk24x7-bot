@@ -84,7 +84,7 @@ io.on('connection', (socket) => {
 
     try {
       bot = mineflayer.createBot({
-        host:     host     || 'localhost',
+        host:     host     || '0.0.0.0',
         port:     parseInt(port) || 25565,
         username: username || 'ControlBot',
         auth:     'offline',
