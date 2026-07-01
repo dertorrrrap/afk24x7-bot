@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎮 Mineflayer Control Panel</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    /* ── Variables ─────────────────────────────────── */
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #12121a;
+      --surface2: #1c1c28;
+      --border:   #2a2a3c;
+      --green:    #4ade80;
+      --green-d:  #166534;
+      --red:      #f87171;
+      --yellow:   #fbbf24;
+      --blue:     #60a5fa;
+      --purple:   #a78bfa;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --radius:   8px;
+    }
+
+    /* ── Reset ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      padding: 12px;
+      user-select: none;
+    }
+
+    /* ── Header ────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .header h1 {
+      font-size: 1.1rem;
+      color: var(--green);
+      letter-spacing: 1px;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background 0.3s;
+      box-shadow: 0 0 6px var(--red);
+    }
+    .dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    #statusText  { color: var(--muted); }
+
+    /* ── Card ──────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+
+    /* ── Connection Row ─────────────────────────────── */
+    .conn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .conn-row input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .conn-row input:focus { border-color: var(--green); }
+    #inHost   { width: 160px; }
+    #inPort   { width: 80px; }
+    #inUser   { width: 120px; }
+
+    /* ── Buttons ────────────────────────────────────── */
+    .btn {
+      font-family: inherit;
+      font-size: 0.78rem;
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn-green  { background: var(--green-d); color: var(--green); border-color: var(--green); }
+    .btn-green:hover  { background: var(--green); color: #000; }
+    .btn-red    { background: #3f0808; color: var(--red);    border-color: var(--red);   }
+    .btn-red:hover    { background: var(--red);   color: #000; }
+    .btn-blue   { background: #1e3a5f; color: var(--blue);  border-color: var(--blue);  }
+    .btn-blue:hover   { background: var(--blue);  color: #000; }
+    .btn-yellow { background: #3f2800; color: var(--yellow); border-color: var(--yellow);}
+    .btn-yellow:hover { background: var(--yellow);color: #000; }
+    .btn-purple { background: #2d1b69; color: var(--purple); border-color: var(--purple);}
+    .btn-purple:hover { background: var(--purple); color: #000; }
+    .btn-gray   { background: var(--surface2); color: var(--text); border-color: var(--border); }
+    .btn-gray:hover   { border-color: var(--muted); }
+
+    /* Active/mining/follow states */
+    .btn-mining { background: var(--yellow) !important; color: #000 !important; }
+    .btn-follow { background: var(--purple) !important; color: #fff !important; }
+
+    /* ── Stats Row ──────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+    .stat-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+    }
+    .stat-label { font-size: 0.65rem; color: var(--muted); margin-bottom: 4px; }
+    .stat-bar {
+      height: 10px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .stat-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s;
+    }
+    .health-fill { background: var(--red); }
+    .food-fill   { background: var(--yellow); }
+    .stat-val {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── Hotbar ─────────────────────────────────────── */
+    .hotbar-grid {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+    }
+    .hotbar-slot {
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      min-height: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hotbar-slot:hover   { border-color: var(--muted); }
+    .hotbar-slot.active  { border-color: var(--yellow); background: #26220d; box-shadow: 0 0 8px rgba(251,191,36,0.3); }
+    .slot-num {
+      font-size: 0.55rem;
+      color: var(--muted);
+    }
+    .slot-icon {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+    .slot-name {
+      font-size: 0.5rem;
+      color: var(--green);
+      word-break: break-word;
+      line-height: 1.2;
+    }
+    .slot-count {
+      font-size: 0.55rem;
+      color: var(--yellow);
+    }
+    .slot-empty { color: var(--border); font-size: 0.6rem; }
+
+    /* ── Main Grid ──────────────────────────────────── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr 220px;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Movement Pad ───────────────────────────────── */
+    .dpad {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
+      gap: 4px;
+      max-width: 180px;
+      margin: 0 auto;
+    }
+    .move-btn {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 14px 0;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .move-btn:active, .move-btn.pressed {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #000;
+      transform: scale(0.95);
+    }
+    .dpad-empty { background: transparent; border: none; pointer-events: none; }
+
+    .extra-moves {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      max-width: 180px;
+      margin: 8px auto 0;
+    }
+    .extra-moves .move-btn { padding: 10px 0; font-size: 0.7rem; }
+
+    /* ── Toggles ────────────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 0.75rem; }
+
+    .toggle-switch {
+      position: relative;
+      width: 40px; height: 20px;
+      cursor: pointer;
+    }
+    .toggle-switch input { display: none; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      transition: 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 2px; top: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    input:checked + .toggle-slider { background: var(--green-d); border-color: var(--green); }
+    input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--green); }
+
+    /* ── Action Buttons ─────────────────────────────── */
+    .action-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* ── Bottom Row ─────────────────────────────────── */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 700px) {
+      .bottom-row { grid-template-columns: 1fr; }
+    }
+
+    .input-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .input-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.78rem;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-row input:focus { border-color: var(--blue); }
+
+    /* ── Console ────────────────────────────────────── */
+    #console {
+      background: #06060d;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px;
+      height: 180px;
+      overflow-y: auto;
+      font-size: 0.72rem;
+      line-height: 1.6;
+      scroll-behavior: smooth;
+    }
+    .log-line { color: var(--muted); margin-bottom: 2px; }
+    .log-line .ts  { color: #2d3748; margin-right: 6px; }
+    .log-line.info { color: #94a3b8; }
+    .log-line.ok   { color: var(--green); }
+    .log-line.err  { color: var(--red); }
+    .log-line.chat { color: var(--blue); }
+    .log-line.cmd  { color: var(--yellow); }
+    .console-clear {
+      float: right;
+      font-size: 0.6rem;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    .console-clear:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────── -->
+  <div class="header">
+    <h1>⛏️ Mineflayer Control Panel</h1>
+    <div class="status-pill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Offline</span>
+    </div>
+  </div>
+
+  <!-- ── Connection ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Connection</div>
+    <div class="conn-row">
+      <input id="inHost" type="text" placeholder="Server IP" value="localhost" />
+      <input id="inPort" type="number" placeholder="Port" value="25565" />
+      <input id="inUser" type="text" placeholder="Username" value="ControlBot" />
+      <button class="btn btn-green" onclick="connectBot()">▶ Connect</button>
+      <button class="btn btn-red"   onclick="disconnectBot()">■ Disconnect</button>
+    </div>
+  </div>
+
+  <!-- ── Stats ───────────────────────────────────────── -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-label">❤️ Health</div>
+      <div class="stat-bar"><div class="stat-fill health-fill" id="healthBar" style="width:0%"></div></div>
+      <div class="stat-val"><span id="healthVal">0</span> / 20</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">🍗 Food</div>
+      <div class="stat-bar"><div class="stat-fill food-fill" id="foodBar" style="width:0%"></div></div>
+      <div class="stat-val"><span id="foodVal">0</span> / 20</div>
+    </div>
+  </div>
+
+  <!-- ── Hotbar ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Hotbar — click to select</div>
+    <div class="hotbar-grid" id="hotbarGrid">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- ── Main Controls Grid ────────────────────────────── -->
+  <div class="main-grid">
+
+    <!-- Movement -->
+    <div class="card">
+      <div class="card-title">Movement</div>
+      <div class="dpad">
+        <div class="dpad-empty"></div>
+        <button class="move-btn" id="btn-forward"
+          data-action="forward">▲</button>
+        <div class="dpad-empty"></div>
+
+        <button class="move-btn" id="btn-left"
+          data-action="left">◀</button>
+        <button class="move-btn dpad-empty" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;pointer-events:none;">•</button>
+        <button class="move-btn" id="btn-right"
+          data-action="right">▶</button>
+
+        <div class="dpad-empty"></div>
+        <button class="move-btn" id="btn-back"
+          data-action="back">▼</button>
+        <div class="dpad-empty"></div>
+      </div>
+      <div class="extra-moves">
+        <button class="move-btn" id="btn-sneak"  data-action="sneak">🦆 Sneak</button>
+        <button class="move-btn" id="btn-jump"   data-action="jump">⬆ Jump</button>
+      </div>
+      <div style="margin-top:8px; text-align:center;">
+        <button class="btn btn-gray" style="font-size:0.65rem;padding:4px 10px;"
+          onclick="socket.emit('stop_all_movement')">■ Stop All</button>
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <div class="card">
+      <div class="card-title">Auto Toggles</div>
+      <div class="toggle-row">
+        <span class="toggle-label">🍗 Auto Eat</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="togAutoEat" onchange="socket.emit('toggle_autoeat', this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">🛡️ Auto Armor</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="togAutoArmor" onchange="socket.emit('toggle_autoarmor', this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">🔧 Auto Tool</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="togAutoTool" onchange="socket.emit('toggle_autotool', this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="card-title">Command</div>
+        <div class="input-row">
+          <input id="cmdInput" type="text" placeholder="/vault, /home, /tpa ..." />
+          <button class="btn btn-yellow" onclick="sendCommand()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="card-title">Actions</div>
+      <div class="action-grid">
+        <button class="btn btn-blue" onclick="vaultTake()">
+          📦 /vault → Take First Item
+        </button>
+        <button class="btn btn-purple" onclick="vaultDeposit()">
+          📤 Open Vault → Deposit Ores
+        </button>
+        <button class="btn btn-yellow" id="btnMine" onclick="toggleMining()">
+          ⛏️ Mine Ores (10 block radius)
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Bottom: Follow Player ─────────────────────────── -->
+  <div class="bottom-row">
+    <div class="card">
+      <div class="card-title">Follow Player</div>
+      <div class="input-row">
+        <input id="followName" type="text" placeholder="Player username..." />
+        <button class="btn btn-purple" id="btnFollow" onclick="toggleFollow()">
+          👣 Follow
+        </button>
+      </div>
+      <div style="margin-top:6px; font-size:0.65rem; color:var(--muted);">
+        Bot will follow within 2 blocks. Click again to stop.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Bot Position / Info</div>
+      <div style="font-size:0.72rem; color:var(--muted); line-height:2;">
+        Status: <span id="posStatus" style="color:var(--green)">—</span><br>
+        Mining: <span id="mineStatus" style="color:var(--muted)">Idle</span><br>
+        Following: <span id="followStatus" style="color:var(--muted)">None</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Console Log ────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">
+      Console Log
+      <span class="console-clear" onclick="document.getElementById('console').innerHTML=''">[ clear ]</span>
+    </div>
+    <div id="console"></div>
+  </div>
+
+  <!-- ── Script ─────────────────────────────────────────── -->
+  <script>
+    const socket = io();
+
+    // ── State ──────────────────────────────────────────
+    let isMining   = false;
+    let isFollowing = false;
+    let heldSlot   = 0;
+
+    // ── Helpers ────────────────────────────────────────
+    function log(msg, type = 'info') {
+      const el = document.getElementById('console');
+      const now = new Date();
+      const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+      const div = document.createElement('div');
+      div.className = `log-line ${type}`;
+
+      // detect emoji-based types
+      if (msg.startsWith('✅') || msg.startsWith('👣') || msg.startsWith('⛏️ Done'))
+        div.classList.add('ok');
+      else if (msg.startsWith('❌'))
+        div.classList.add('err');
+      else if (msg.startsWith('💬'))
+        div.classList.add('chat');
+      else if (msg.startsWith('📤') || msg.startsWith('📦'))
+        div.classList.add('cmd');
+
+      div.innerHTML = `<span class="ts">[${ts}]</span>${escapeHtml(msg)}`;
+      el.appendChild(div);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Status ─────────────────────────────────────────
+    socket.on('status', ({ connected, message }) => {
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      dot.className  = 'dot ' + (connected ? 'online' : '');
+      text.textContent = connected ? 'Online' : 'Offline';
+      document.getElementById('posStatus').textContent = connected ? 'Connected' : '—';
+      if (message) log(message);
+    });
+
+    // ── Stats ──────────────────────────────────────────
+    socket.on('stats', ({ health, food }) => {
+      document.getElementById('healthVal').textContent = health;
+      document.getElementById('foodVal').textContent   = food;
+      document.getElementById('healthBar').style.width = (health / 20 * 100) + '%';
+      document.getElementById('foodBar').style.width   = (food   / 20 * 100) + '%';
+    });
+
+    // ── Hotbar ─────────────────────────────────────────
+    const ITEM_ICONS = {
+      // weapons
+      sword:'⚔️', axe:'🪓', bow:'🏹', trident:'🔱', crossbow:'🏹',
+      // tools
+      pickaxe:'⛏️', shovel:'🪛', hoe:'🌾',
+      // food
+      apple:'🍎', bread:'🍞', cooked_beef:'🥩', golden_apple:'✨',
+      melon_slice:'🍈', carrot:'🥕', potato:'🥔', porkchop:'🍖',
+      // ores / materials
+      diamond:'💎', emerald:'💚', gold_ingot:'🥇', iron_ingot:'🔩',
+      coal:'🪨', redstone:'🔴', lapis_lazuli:'🔵',
+      // blocks
+      dirt:'🟫', stone:'🪨', grass_block:'🌿', sand:'🏜️', gravel:'⬜',
+      oak_log:'🪵', crafting_table:'🛠️', furnace:'🔥',
+      // armor
+      helmet:'⛑️', chestplate:'🦺', leggings:'👖', boots:'👟',
+      // misc
+      torch:'🕯️', ladder:'🪜', chest:'📦', bucket:'🪣',
+      ender_pearl:'🟢', blaze_rod:'🔥',
+    };
+
+    function getIcon(name) {
+      if (!name) return '❓';
+      for (const [key, icon] of Object.entries(ITEM_ICONS)) {
+        if (name.includes(key)) return icon;
+      }
+      return '📦';
+    }
+
+    function formatName(name) {
+      if (!name) return '';
+      return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    socket.on('hotbar', ({ items, held }) => {
+      heldSlot = held ?? 0;
+      const grid = document.getElementById('hotbarGrid');
+      grid.innerHTML = '';
+      items.forEach((item, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'hotbar-slot' + (i === heldSlot ? ' active' : '');
+        slot.onclick = () => socket.emit('hotbar_select', i);
+        if (item) {
+          slot.innerHTML = `
+            <span class="slot-num">${i + 1}</span>
+            <span class="slot-icon">${getIcon(item.name)}</span>
+            <span class="slot-name">${formatName(item.displayName || item.name)}</span>
+            <span class="slot-count">×${item.count}</span>`;
+        } else {
+          slot.innerHTML = `
+            <span class="slot-num">${i + 1}</span>
+            <span class="slot-icon" style="color:var(--border)">—</span>
+            <span class="slot-empty">empty</span>
+            <span></span>`;
+        }
+        grid.appendChild(slot);
+      });
+    });
+
+    // ── Log ────────────────────────────────────────────
+    socket.on('log', (msg) => log(msg));
+
+    // ── Mining state ───────────────────────────────────
+    socket.on('mining_state', (active) => {
+      isMining = active;
+      const btn = document.getElementById('btnMine');
+      btn.textContent = active ? '🛑 Stop Mining' : '⛏️ Mine Ores (10 block radius)';
+      btn.className   = active ? 'btn btn-mining' : 'btn btn-yellow';
+      document.getElementById('mineStatus').textContent = active ? '⛏️ Mining...' : 'Idle';
+      document.getElementById('mineStatus').style.color = active ? 'var(--yellow)' : 'var(--muted)';
+    });
+
+    // ── Follow state ───────────────────────────────────
+    socket.on('follow_state', (active) => {
+      isFollowing = active;
+      const btn = document.getElementById('btnFollow');
+      btn.textContent = active ? '🛑 Stop Follow' : '👣 Follow';
+      btn.className   = active ? 'btn btn-follow' : 'btn btn-purple';
+      const name = document.getElementById('followName').value;
+      document.getElementById('followStatus').textContent = active ? name : 'None';
+      document.getElementById('followStatus').style.color = active ? 'var(--purple)' : 'var(--muted)';
+    });
+
+    // ── Connection ─────────────────────────────────────
+    function connectBot() {
+      const host = document.getElementById('inHost').value.trim();
+      const port = document.getElementById('inPort').value.trim();
+      const username = document.getElementById('inUser').value.trim();
+      if (!host || !port) { log('❌ Enter IP and port'); return; }
+      log(`🔌 Connecting to ${host}:${port} as ${username}...`);
+      socket.emit('join', { host, port, username });
+    }
+
+    function disconnectBot() {
+      socket.emit('disconnect_bot');
+    }
+
+    // ── Movement ───────────────────────────────────────
+    const moveActions = {
+      forward: 'forward', back: 'back',
+      left: 'left', right: 'right',
+      sneak: 'sneak', jump: 'jump'
+    };
+
+    document.querySelectorAll('.move-btn[data-action]').forEach(btn => {
+      const action = btn.dataset.action;
+
+      const press   = (e) => { e.preventDefault(); btn.classList.add('pressed');   socket.emit('move_start', action); };
+      const release = (e) => { e.preventDefault(); btn.classList.remove('pressed'); socket.emit('move_stop', action); };
+
+      btn.addEventListener('mousedown',  press);
+      btn.addEventListener('mouseup',    release);
+      btn.addEventListener('mouseleave', release);
+      btn.addEventListener('touchstart', press,   { passive: false });
+      btn.addEventListener('touchend',   release, { passive: false });
+    });
+
+    // Stop all movement when mouse leaves window
+    document.addEventListener('mouseup', () => socket.emit('stop_all_movement'));
+
+    // ── Vault ──────────────────────────────────────────
+    function vaultTake() {
+      log('📦 Vault → taking first item...');
+      socket.emit('vault_take');
+    }
+
+    function vaultDeposit() {
+      log('📦 Vault → depositing ores & ingots...');
+      socket.emit('vault_deposit');
+    }
+
+    // ── Mining ─────────────────────────────────────────
+    function toggleMining() {
+      if (isMining) {
+        socket.emit('stop_mining');
+      } else {
+        socket.emit('mine_ores');
+      }
+    }
+
+    // ── Follow ─────────────────────────────────────────
+    function toggleFollow() {
+      const name = document.getElementById('followName').value.trim();
+      if (!isFollowing && !name) { log('❌ Enter a player name first'); return; }
+      socket.emit('follow_player', { playerName: name, enabled: !isFollowing });
+    }
+
+    // ── Command ────────────────────────────────────────
+    function sendCommand() {
+      const cmd = document.getElementById('cmdInput').value.trim();
+      if (!cmd) return;
+      socket.emit('send_command', cmd);
+      document.getElementById('cmdInput').value = '';
+    }
+
+    document.getElementById('cmdInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendCommand();
+    });
+
+    document.getElementById('followName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') toggleFollow();
+    });
+
+    // ── Init hotbar placeholders ───────────────────────
+    (function initHotbar() {
+      const grid = document.getElementById('hotbarGrid');
+      for (let i = 0; i < 9; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'hotbar-slot' + (i === 0 ? ' active' : '');
+        slot.onclick = () => socket.emit('hotbar_select', i);
+        slot.innerHTML = `
+          <span class="slot-num">${i + 1}</span>
+          <span class="slot-icon" style="color:var(--border)">—</span>
+          <span class="slot-empty">empty</span>
+          <span></span>`;
+        grid.appendChild(slot);
+      }
+    })();
+
+    log('🚀 Control panel ready. Enter server details and click Connect.', 'ok');
+  </script>
+</body>
+</html>
