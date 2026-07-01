@@ -410,7 +410,7 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-const PORT = 4000;
+const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Mineflayer Control Panel running at: http://localhost:${PORT}\n`);
+  console.log(`🚀 Running on port ${PORT}`);
 });
